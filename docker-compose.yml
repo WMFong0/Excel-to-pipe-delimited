@@ -1,11 +1,28 @@
-version: '3.8'
-
 services:
   converter-api:
-    build: .
-    container_name: excel_to_pipe_converter
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8096:8080"
+      - "127.0.0.1:8096:8080"
     environment:
       - PYTHONUNBUFFERED=1
+    user: "10001:10001"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2.0
+    stop_grace_period: 30s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped

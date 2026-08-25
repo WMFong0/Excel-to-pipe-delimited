@@ -1,25 +1,26 @@
-# Use a lightweight, stable Python runtime image
-FROM python:3.11-slim
+FROM python:3.14-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Prevent Python from writing .pyc files and buffer outputs for real-time logs
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
 
-# Copy the requirements file first to take advantage of Docker layer caching
-COPY requirements.txt /app/requirements.txt
+COPY requirements.txt requirements.lock /app/
 
-# Install dependencies cleanly without storing a local cache
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock \
+    && useradd --no-create-home --uid 10001 --shell /usr/sbin/nologin appuser
 
-# Copy your main application file
 COPY main.py /app/main.py
 
-# Expose port 8080 to match your target environment
+USER 10001:10001
+
 EXPOSE 8080
 
-# Run using the official fastapi production command
-# This safely binds to 0.0.0.0 and overrides your script's local 127.0.0.1 settings
-CMD ["fastapi", "run", "main.py", "--port", "8080", "--host", "0.0.0.0"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).read(1)"
+
+CMD ["uvicorn", "main:app", "--port", "8080", "--host", "0.0.0.0", "--limit-concurrency", "8", "--limit-max-requests", "1000", "--timeout-graceful-shutdown", "30", "--no-server-header"]
